@@ -256,10 +256,42 @@ class HttpLoggingInterceptor @JvmOverloads constructor(
       } else if (bodyHasUnknownEncoding(response.headers)) {
         logger.log("<-- END HTTP (encoded body omitted)")
       } else if (bodyIsStreaming(response)) {
-        logger.log("<-- END HTTP (streaming)")
+        val source = responseBody.source()
+
+        val totalMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs)
+
+        var buffer = source.buffer
+
+        var gzippedLength: Long? = null
+        if ("gzip".equals(headers["Content-Encoding"], ignoreCase = true)) {
+          gzippedLength = buffer.size
+          GzipSource(buffer.clone()).use { gzippedResponseBody ->
+            buffer = Buffer()
+            buffer.writeAll(gzippedResponseBody)
+          }
+        }
+
+        val charset: Charset = responseBody.contentType().charsetOrUtf8()
+
+        if (!buffer.isProbablyUtf8()) {
+          logger.log("")
+          logger.log("<-- END HTTP (${totalMs}ms, binary ${buffer.size}-byte body omitted)")
+          return response
+        }
+
+        if (contentLength != 0L) {
+          logger.log("")
+          logger.log(buffer.clone().readString(charset))
+        }
+
+        if (gzippedLength != null) {
+          logger.log("<-- END HTTP (${totalMs}ms, ${buffer.size}-byte, $gzippedLength-gzipped-byte body)")
+        } else {
+          logger.log("<-- END HTTP (${totalMs}ms, ${buffer.size}-byte body)")
+        }
       } else {
         val source = responseBody.source()
-//        source.request(Long.MAX_VALUE) // Buffer the entire body.
+        source.request(Long.MAX_VALUE) // Buffer the entire body.
 
         val totalMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs)
 
