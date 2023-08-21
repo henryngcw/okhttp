@@ -259,7 +259,7 @@ class HttpLoggingInterceptor @JvmOverloads constructor(
         logger.log("<-- END HTTP (streaming)")
       } else {
         val source = responseBody.source()
-        source.request(Long.MAX_VALUE) // Buffer the entire body.
+//        source.request(Long.MAX_VALUE) // Buffer the entire body.
 
         val totalMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs)
 
